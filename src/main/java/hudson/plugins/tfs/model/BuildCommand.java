@@ -3,6 +3,10 @@ package hudson.plugins.tfs.model;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.teamfoundation.sourcecontrol.webapi.model.GitPullRequest;
 import com.microsoft.teamfoundation.sourcecontrol.webapi.model.GitPush;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import hudson.model.AbstractProject;
 import hudson.model.Action;
 import hudson.model.Cause;
@@ -19,6 +23,8 @@ import hudson.plugins.tfs.CommitParameterAction;
 import hudson.plugins.tfs.PullRequestParameterAction;
 import hudson.plugins.tfs.TeamBuildEndpoint;
 import hudson.plugins.tfs.model.servicehooks.Event;
+import hudson.plugins.tfs.TeamEventsEndpoint;
+import hudson.plugins.tfs.TeamPullRequestMergedDetailsAction;
 import hudson.plugins.tfs.util.ActionHelper;
 import hudson.plugins.tfs.util.MediaType;
 import jenkins.model.Jenkins;
@@ -46,6 +52,12 @@ public class BuildCommand extends AbstractCommand {
     private static final String SYSTEM_TEAM_FOUNDATION_COLLECTION_URI = "System.TeamFoundationCollectionUri";
     private static final String COMMIT_ID = "commitId";
     private static final String PULL_REQUEST_ID = "pullRequestId";
+    private static final ObjectMapper MAPPER;
+
+    static {
+        MAPPER = new ObjectMapper();
+        MAPPER.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+    }
 
     public static class Factory implements AbstractCommand.Factory {
         @Override
@@ -108,13 +120,17 @@ public class BuildCommand extends AbstractCommand {
                 actions.add(action);
             }
             else if ("git.pullrequest.merged".equals(eventType)) {
-                final GitPullRequest gitPullRequest = mapper.convertValue(resource, GitPullRequest.class);
+                final GitPullRequestEx gitPullRequest = mapper.convertValue(resource, GitPullRequestEx.class);
                 final PullRequestMergeCommitCreatedEventArgs args = GitPullRequestMergedEvent.decodeGitPullRequest(gitPullRequest, event);
                 // record the values for the special optional parameters
                 commitId = args.commit;
                 pullRequestId = Integer.toString(args.pullRequestId, 10);
                 final Action action = new PullRequestParameterAction(args);
                 actions.add(action);
+                final String message = event.getMessage().getText();
+                final String detailedMessage = event.getDetailedMessage().getText();
+                final Action teamPullRequestMergedDetailsAction = new TeamPullRequestMergedDetailsAction(gitPullRequest, message, detailedMessage, args.collectionUri.toString());
+                actions.add(teamPullRequestMergedDetailsAction);
             }
         }
 
