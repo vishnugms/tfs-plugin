@@ -12,6 +12,8 @@ import hudson.plugins.tfs.model.Link;
 import hudson.plugins.tfs.model.PullRequestMergeCommitCreatedEventArgs;
 import hudson.plugins.tfs.model.TeamGitStatus;
 import hudson.util.Secret;
+import net.sf.json.JSON;
+import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
 import org.apache.commons.io.IOUtils;
 
@@ -88,8 +90,14 @@ public class TeamRestClient {
 
             final String stringRequestBody;
             if (requestBody != null) {
-                final JSONObject jsonObject = JSONObject.fromObject(requestBody);
-                stringRequestBody = jsonObject.toString();
+                final JSON jsonObject;
+                if (requestBody instanceof JSON) {
+                    jsonObject = (JSON) requestBody;
+                }
+                else {
+                    jsonObject = JSONObject.fromObject(requestBody);
+                }
+                stringRequestBody = jsonObject.toString(0);
             }
             else {
                 stringRequestBody = null;
